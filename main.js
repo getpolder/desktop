@@ -307,6 +307,9 @@ app.whenReady().then(() => {
         callback(['clipboard-sanitized-write', 'notifications', 'fullscreen'].includes(permission)),
     );
 
+    // The packaged app gets its icon from build/icon.png; this covers `npm start`.
+    if (process.platform === 'darwin') app.dock.setIcon(path.join(__dirname, 'build', 'icon.png'));
+
     buildMenu();
     createWindow();
 
