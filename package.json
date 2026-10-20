@@ -1,0 +1,29 @@
+{
+    "name": "polder-desktop",
+    "productName": "Polder",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Polder as a macOS app: a browser shell with tabs.",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "dist": "electron-builder --mac"
+    },
+    "build": {
+        "appId": "work.polder.desktop",
+        "productName": "Polder",
+        "mac": {
+            "category": "public.app-category.productivity",
+            "target": "dmg"
+        },
+        "files": [
+            "main.js",
+            "tabbar.html",
+            "tabbar-preload.js"
+        ]
+    },
+    "devDependencies": {
+        "electron": "^44.9.1",
+        "electron-builder": "^26.0.0"
+    }
+}

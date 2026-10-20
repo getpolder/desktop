@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+<style>
+    :root {
+        color-scheme: light dark;
+        --bg: #ececee;
+        --tab: #f9f9fa;
+        --text: #1c1c1e;
+        --muted: #6b6b70;
+        --hover: rgba(0, 0, 0, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #1b1b1d;
+            --tab: #2a2a2d;
+            --text: #f2f2f3;
+            --muted: #98989f;
+            --hover: rgba(255, 255, 255, 0.08);
+        }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); font: 12px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--text); user-select: none; }
+    /* The left padding clears the macOS traffic lights; empty space drags the window. */
+    #bar { display: flex; align-items: flex-end; gap: 2px; height: 100%; padding: 0 8px 0 80px; -webkit-app-region: drag; }
+    .tab, button { -webkit-app-region: no-drag; }
+    .tab { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 200px; height: 30px; padding: 0 8px 0 12px; border-radius: 8px 8px 0 0; color: var(--muted); cursor: default; }
+    .tab:hover { background: var(--hover); }
+    .tab.active { background: var(--tab); color: var(--text); }
+    .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    button { border: 0; background: none; color: inherit; border-radius: 4px; width: 18px; height: 18px; line-height: 18px; padding: 0; font-size: 14px; cursor: default; }
+    button:hover { background: var(--hover); }
+    .tab button { visibility: hidden; }
+    .tab:hover button, .tab.active button { visibility: visible; }
+    #new { margin: 0 0 6px 4px; width: 22px; height: 22px; line-height: 22px; font-size: 16px; color: var(--muted); }
+</style>
+<div id="bar"></div>
+<script>
+    const bar = document.getElementById('bar');
+
+    function render({ tabs, active }) {
+        bar.replaceChildren();
+
+        for (const tab of tabs) {
+            const el = document.createElement('div');
+            el.className = 'tab' + (tab.id === active ? ' active' : '');
+            el.addEventListener('mousedown', () => window.tabs.activate(tab.id));
+            // Middle click closes, like a browser.
+            el.addEventListener('auxclick', (event) => event.button === 1 && window.tabs.close(tab.id));
+
+            const title = document.createElement('span');
+            title.className = 'title';
+            title.textContent = tab.title || 'Polder';
+
+            const close = document.createElement('button');
+            close.textContent = '×';
+            close.title = 'Close tab';
+            close.addEventListener('mousedown', (event) => event.stopPropagation());
+            close.addEventListener('click', () => window.tabs.close(tab.id));
+
+            el.append(title, close);
+            bar.append(el);
+        }
+
+        const add = document.createElement('button');
+        add.id = 'new';
+        add.textContent = '+';
+        add.title = 'New tab';
+        add.addEventListener('click', () => window.tabs.create());
+        bar.append(add);
+    }
+
+    window.tabs.onState(render);
+    window.tabs.ready();
+</script>
