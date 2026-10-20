@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
 <style>
     :root {
         color-scheme: light dark;
@@ -9,6 +9,9 @@
         --text: #1c1c1e;
         --muted: #6b6b70;
         --hover: rgba(0, 0, 0, 0.06);
+        --hover-strong: rgba(0, 0, 0, 0.1);
+        --edge: rgba(0, 0, 0, 0.1);
+        --shadow: rgba(0, 0, 0, 0.08);
     }
     @media (prefers-color-scheme: dark) {
         :root {
@@ -17,36 +20,151 @@
             --text: #f2f2f3;
             --muted: #98989f;
             --hover: rgba(255, 255, 255, 0.08);
+            --hover-strong: rgba(255, 255, 255, 0.14);
+            --edge: rgba(255, 255, 255, 0.1);
+            --shadow: rgba(0, 0, 0, 0.3);
         }
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); font: 12px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--text); user-select: none; }
+    html, body { margin: 0; height: 100%; background: transparent; font: 12px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--text); user-select: none; }
     /* The left padding clears the macOS traffic lights; empty space drags the window. */
-    #bar { display: flex; align-items: flex-end; gap: 2px; height: 100%; padding: 0 8px 0 80px; -webkit-app-region: drag; }
+    #bar { display: flex; align-items: center; gap: 4px; height: 38px; background: var(--bg); padding: 0 10px 0 80px; -webkit-app-region: drag; }
     .tab, button { -webkit-app-region: no-drag; }
-    .tab { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 200px; height: 30px; padding: 0 8px 0 12px; border-radius: 8px 8px 0 0; color: var(--muted); cursor: default; }
-    .tab:hover { background: var(--hover); }
-    .tab.active { background: var(--tab); color: var(--text); }
+    .tab { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1 200px; height: 28px; padding: 0 6px 0 12px; border-radius: 8px; color: var(--muted); cursor: default; transition: background 0.12s, color 0.12s; }
+    /* Hairline between neighbours, hidden next to the hovered or active tab. */
+    .tab + .tab::before { content: ''; position: absolute; left: -3px; top: 8px; bottom: 8px; width: 1px; background: var(--hover); }
+    .tab:hover + .tab::before, .tab.active + .tab::before, .tab:hover::before, .tab.active::before { opacity: 0; }
+    .tab:hover { background: var(--hover); color: var(--text); }
+    .tab.active { background: var(--tab); color: var(--text); font-weight: 500; box-shadow: 0 0 0 0.5px var(--edge), 0 1px 2px var(--shadow); }
     .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    button { border: 0; background: none; color: inherit; border-radius: 4px; width: 18px; height: 18px; line-height: 18px; padding: 0; font-size: 14px; cursor: default; }
-    button:hover { background: var(--hover); }
-    .tab button { visibility: hidden; }
-    .tab:hover button, .tab.active button { visibility: visible; }
-    #new { margin: 0 0 6px 4px; width: 22px; height: 22px; line-height: 22px; font-size: 16px; color: var(--muted); }
+    button { display: grid; place-items: center; flex: none; border: 0; background: none; color: inherit; border-radius: 50%; width: 18px; height: 18px; padding: 0; font-size: 14px; line-height: 1; cursor: default; transition: background 0.12s; }
+    button:hover { background: var(--hover-strong); }
+    .tab button { opacity: 0; }
+    .tab:hover button, .tab.active button { opacity: 0.7; }
+    .tab button:hover { opacity: 1; }
+    .tab.pinned { flex: none; width: 36px; padding: 0; justify-content: center; }
+    .tab.pinned + .tab:not(.pinned) { margin-left: 6px; }
+    .tab img, .tab .initial { width: 14px; height: 14px; border-radius: 3px; }
+    .tab .initial { display: grid; place-items: center; font-size: 10px; font-weight: 600; background: var(--hover-strong); }
+    #card { position: absolute; top: 42px; width: 280px; display: none; overflow: hidden; border-radius: 10px; background: var(--tab); box-shadow: 0 0 0 0.5px var(--edge), 0 8px 24px var(--shadow); pointer-events: none; }
+    #card.show { display: block; }
+    #card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; background: var(--bg); }
+    #card .meta { padding: 8px 10px; }
+    #card .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    #card .host { margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .tab.dragging { opacity: 0.4; }
+    .tab.drop-before { box-shadow: -2px 0 0 0 #6d6dff; }
+    .tab.drop-after { box-shadow: 2px 0 0 0 #6d6dff; }
+    #new { width: 24px; height: 24px; border-radius: 6px; font-size: 17px; color: var(--muted); }
 </style>
 <div id="bar"></div>
+<div id="card"><img /><div class="meta"><div class="name"></div><div class="host"></div></div></div>
 <script>
     const bar = document.getElementById('bar');
 
-    function render({ tabs, active }) {
+    const card = document.getElementById('card');
+    let hovering = null;
+    let hoverTimer = null;
+
+    function hideCard() {
+        clearTimeout(hoverTimer);
+        if (hovering === null) return;
+
+        hovering = null;
+        card.classList.remove('show');
+        window.tabs.unhover();
+    }
+
+    window.tabs.onPreview(({ id, image, host }) => {
+        if (id !== hovering?.id) return;
+
+        const img = card.querySelector('img');
+        img.hidden = !image;
+        if (image) img.src = image;
+        card.querySelector('.name').textContent = hovering.title || 'Polder';
+        card.querySelector('.host').textContent = host;
+        card.style.left = `${Math.max(8, Math.min(hovering.left, innerWidth - 288))}px`;
+        card.classList.add('show');
+    });
+
+    let dragId = null;
+    let latest = null;
+
+    const after = (event, el) => {
+        const rect = el.getBoundingClientRect();
+        return event.clientX > rect.left + rect.width / 2;
+    };
+
+    function render(state) {
+        latest = state;
+        hideCard();
+        // A re-render (e.g. a title update) would kill the drag in progress; dragend renders again.
+        if (dragId !== null) return;
+
+        const { tabs, active } = state;
         bar.replaceChildren();
 
-        for (const tab of tabs) {
+        tabs.forEach((tab, index) => {
             const el = document.createElement('div');
             el.className = 'tab' + (tab.id === active ? ' active' : '');
+            el.draggable = true;
+            el.title = tab.title;
+            el.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+                window.tabs.menu(tab.id);
+            });
+            el.addEventListener('dragstart', (event) => {
+                dragId = tab.id;
+                hideCard();
+                event.dataTransfer.effectAllowed = 'move';
+                el.classList.add('dragging');
+            });
+            el.addEventListener('dragover', (event) => {
+                if (dragId === null) return;
+                event.preventDefault();
+                const isAfter = after(event, el);
+                el.classList.toggle('drop-before', !isAfter);
+                el.classList.toggle('drop-after', isAfter);
+            });
+            el.addEventListener('dragleave', () => el.classList.remove('drop-before', 'drop-after'));
+            el.addEventListener('drop', (event) => {
+                event.preventDefault();
+                const from = tabs.findIndex((candidate) => candidate.id === dragId);
+                let to = index + (after(event, el) ? 1 : 0);
+                if (from < to) to--;
+                if (from !== to) window.tabs.move(dragId, to);
+            });
+            el.addEventListener('dragend', () => {
+                dragId = null;
+                render(latest);
+            });
             el.addEventListener('mousedown', () => window.tabs.activate(tab.id));
-            // Middle click closes, like a browser.
-            el.addEventListener('auxclick', (event) => event.button === 1 && window.tabs.close(tab.id));
+            el.addEventListener('mouseenter', () => {
+                if (dragId !== null) return;
+                // Not yet shown: wait a beat so sweeping across the bar does not flash cards.
+                hoverTimer = setTimeout(() => {
+                    hovering = { id: tab.id, title: tab.title, left: el.getBoundingClientRect().left };
+                    window.tabs.hover(tab.id);
+                }, 650);
+            });
+            el.addEventListener('mouseleave', hideCard);
+            // Middle click closes, like a browser; pinned tabs ignore it.
+            el.addEventListener('auxclick', (event) => event.button === 1 && !tab.pinned && window.tabs.close(tab.id));
+
+            if (tab.pinned) {
+                el.classList.add('pinned');
+
+                const icon = tab.favicon ? document.createElement('img') : document.createElement('span');
+                if (tab.favicon) icon.src = tab.favicon;
+                else {
+                    icon.className = 'initial';
+                    icon.textContent = (tab.title || 'P')[0].toUpperCase();
+                }
+
+                el.append(icon);
+                bar.append(el);
+                return;
+            }
 
             const title = document.createElement('span');
             title.className = 'title';
@@ -60,7 +178,7 @@
 
             el.append(title, close);
             bar.append(el);
-        }
+        });
 
         const add = document.createElement('button');
         add.id = 'new';
